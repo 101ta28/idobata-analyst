@@ -1,8 +1,8 @@
-import React, { useState, useCallback, useRef } from 'react';
-import { API_URL } from '../config/api';
-import { CommentSourceType } from '../types/comment';
-import Papa from 'papaparse';
-import type { ParseResult } from 'papaparse';
+import React, { useState, useCallback, useRef } from "react";
+import { API_URL } from "../config/api";
+import { CommentSourceType } from "../types/comment";
+import Papa from "papaparse";
+import type { ParseResult } from "papaparse";
 
 interface CsvRow {
   content: string;
@@ -10,13 +10,12 @@ interface CsvRow {
   sourceUrl: string;
 }
 
-
 const CsvUploadPage: React.FC = () => {
   // Project form states
-  const [projectName, setProjectName] = useState<string>('');
-  const [projectDescription, setProjectDescription] = useState<string>('');
-  const [extractionTopic, setExtractionTopic] = useState<string>('');
-  const [currentProjectId, setCurrentProjectId] = useState<string>('');
+  const [projectName, setProjectName] = useState<string>("");
+  const [projectDescription, setProjectDescription] = useState<string>("");
+  const [extractionTopic, setExtractionTopic] = useState<string>("");
+  const [currentProjectId, setCurrentProjectId] = useState<string>("");
 
   // File states
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -27,61 +26,71 @@ const CsvUploadPage: React.FC = () => {
 
   // Progress states
   const [progress, setProgress] = useState<number>(0);
-  const [status, setStatus] = useState<string>('');
+  const [status, setStatus] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
-  const [currentStep, setCurrentStep] = useState<'project' | 'upload' | 'questions' | 'complete'>('project');
-  
+  const [currentStep, setCurrentStep] = useState<
+    "project" | "upload" | "questions" | "complete"
+  >("project");
+
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  const handleFileSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) {
-      setSelectedFile(null);
-      setPreviewData(null);
-      setStatus('');
-      return;
-    }
+  const handleFileSelect = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) {
+        setSelectedFile(null);
+        setPreviewData(null);
+        setStatus("");
+        return;
+      }
 
-    setSelectedFile(file);
-    setStatus('CSVを検証中...');
+      setSelectedFile(file);
+      setStatus("CSVを検証中...");
 
-    Papa.parse<CsvRow>(file, {
-      header: true,
-      preview: 1,
-      complete: (results: ParseResult<CsvRow>) => {
-        const hasRequiredColumns = results.meta.fields?.includes('content') ?? false;
+      const completeHandler = (results: ParseResult<CsvRow>) => {
+        const hasRequiredColumns =
+          results.meta.fields?.includes("content") ?? false;
         setPreviewData({
           totalRows: results.data.length,
-          isValid: hasRequiredColumns
+          isValid: hasRequiredColumns,
         });
         setStatus(
-          hasRequiredColumns 
+          hasRequiredColumns
             ? `${file.name} が選択されました (${results.data.length}件のデータ)`
-            : 'CSVファイルに必要な列(content)が含まれていません'
+            : "CSVファイルに必要な列(content)が含まれていません"
         );
-      },
-      error: (error: Error) => {
-        console.error('CSV parse error:', error);
+      };
+
+      const errorHandler = (error: Error) => {
+        console.error("CSV parse error:", error);
         setStatus(`CSVの検証に失敗しました: ${error.message}`);
         setPreviewData(null);
-      }
-    });
-  }, []);
+      };
+
+      Papa.parse<CsvRow>(file, {
+        header: true,
+        preview: 1,
+        complete: completeHandler,
+        error: errorHandler,
+      });
+    },
+    []
+  );
 
   const createProject = async () => {
     if (!projectName || !extractionTopic) {
-      setStatus('プロジェクト名と抽出トピックを入力してください');
+      setStatus("プロジェクト名と抽出トピックを入力してください");
       return;
     }
 
     setIsProcessing(true);
-    setStatus('プロジェクトを作成中...');
+    setStatus("プロジェクトを作成中...");
 
     try {
       const response = await fetch(`${API_URL}/projects`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           name: projectName,
@@ -91,16 +100,22 @@ const CsvUploadPage: React.FC = () => {
       });
 
       if (!response.ok) {
-        throw new Error('プロジェクトの作成に失敗しました');
+        throw new Error("プロジェクトの作成に失敗しました");
       }
 
       const project = await response.json();
       setCurrentProjectId(project._id);
-      setCurrentStep('upload');
-      setStatus('プロジェクトが作成されました。CSVファイルをアップロードしてください。');
+      setCurrentStep("upload");
+      setStatus(
+        "プロジェクトが作成されました。CSVファイルをアップロードしてください。"
+      );
     } catch (error) {
-      console.error('Error creating project:', error);
-      setStatus(`プロジェクトの作成に失敗しました: ${error instanceof Error ? error.message : '不明なエラー'}`);
+      console.error("Error creating project:", error);
+      setStatus(
+        `プロジェクトの作成に失敗しました: ${
+          error instanceof Error ? error.message : "不明なエラー"
+        }`
+      );
     } finally {
       setIsProcessing(false);
     }
@@ -112,26 +127,29 @@ const CsvUploadPage: React.FC = () => {
 
     for (let i = 0; i < data.length; i += batchSize) {
       if (abortControllerRef.current?.signal.aborted) {
-        setStatus('アップロードがキャンセルされました');
+        setStatus("アップロードがキャンセルされました");
         return;
       }
 
       const batch = data.slice(i, i + batchSize);
-      const comments = batch.map(row => ({
+      const comments = batch.map((row) => ({
         content: row.content,
-        sourceType: row.sourceType || 'other',
-        sourceUrl: row.sourceUrl || '',
-        stances: []
+        sourceType: row.sourceType || "other",
+        sourceUrl: row.sourceUrl || "",
+        stances: [],
       }));
 
       try {
-        const response = await fetch(`${API_URL}/projects/${currentProjectId}/comments/bulk`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ comments }),
-        });
+        const response = await fetch(
+          `${API_URL}/projects/${currentProjectId}/comments/bulk`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ comments }),
+          }
+        );
 
         if (!response.ok) {
           throw new Error(`APIエラー: ${response.statusText}`);
@@ -142,25 +160,29 @@ const CsvUploadPage: React.FC = () => {
         setProgress(newProgress);
         setStatus(`${processedBatches}/${totalBatches} バッチを処理中...`);
       } catch (error) {
-        console.error('Error uploading batch:', error);
-        setStatus(`エラーが発生しました: ${error instanceof Error ? error.message : '不明なエラー'}`);
+        console.error("Error uploading batch:", error);
+        setStatus(
+          `エラーが発生しました: ${
+            error instanceof Error ? error.message : "不明なエラー"
+          }`
+        );
         return;
       }
     }
 
-    setStatus('コメントのアップロードが完了しました');
-    setCurrentStep('questions');
+    setStatus("コメントのアップロードが完了しました");
+    setCurrentStep("questions");
   };
 
   const handleStartUpload = useCallback(async () => {
     if (!selectedFile || !currentProjectId || !previewData?.isValid) {
-      setStatus('有効なファイルを選択してください');
+      setStatus("有効なファイルを選択してください");
       return;
     }
 
     setIsProcessing(true);
     setProgress(0);
-    setStatus('CSVを解析中...');
+    setStatus("CSVを解析中...");
 
     abortControllerRef.current = new AbortController();
 
@@ -169,7 +191,7 @@ const CsvUploadPage: React.FC = () => {
       complete: async (results: ParseResult<CsvRow>) => {
         const data = results.data;
         if (data.length === 0) {
-          setStatus('CSVファイルが空です');
+          setStatus("CSVファイルが空です");
           setIsProcessing(false);
           return;
         }
@@ -179,31 +201,38 @@ const CsvUploadPage: React.FC = () => {
         setIsProcessing(false);
       },
       error: (error: Error) => {
-        console.error('CSV parse error:', error);
+        console.error("CSV parse error:", error);
         setStatus(`CSVの解析に失敗しました: ${error.message}`);
         setIsProcessing(false);
-      }
+      },
     });
   }, [currentProjectId, selectedFile, previewData]);
 
   const generateQuestions = async () => {
     setIsProcessing(true);
-    setStatus('質問を生成中...');
+    setStatus("質問を生成中...");
 
     try {
-      const response = await fetch(`${API_URL}/projects/${currentProjectId}/generate-questions`, {
-        method: 'POST',
-      });
+      const response = await fetch(
+        `${API_URL}/projects/${currentProjectId}/generate-questions`,
+        {
+          method: "POST",
+        }
+      );
 
       if (!response.ok) {
-        throw new Error('質問の生成に失敗しました');
+        throw new Error("質問の生成に失敗しました");
       }
 
-      setStatus('質問の生成が完了しました');
-      setCurrentStep('complete');
+      setStatus("質問の生成が完了しました");
+      setCurrentStep("complete");
     } catch (error) {
-      console.error('Error generating questions:', error);
-      setStatus(`質問の生成に失敗しました: ${error instanceof Error ? error.message : '不明なエラー'}`);
+      console.error("Error generating questions:", error);
+      setStatus(
+        `質問の生成に失敗しました: ${
+          error instanceof Error ? error.message : "不明なエラー"
+        }`
+      );
     } finally {
       setIsProcessing(false);
     }
@@ -213,7 +242,7 @@ const CsvUploadPage: React.FC = () => {
     abortControllerRef.current?.abort();
     setIsProcessing(false);
     setProgress(0);
-    setStatus('処理がキャンセルされました');
+    setStatus("処理がキャンセルされました");
   }, []);
 
   return (
@@ -223,26 +252,41 @@ const CsvUploadPage: React.FC = () => {
       {/* Step indicator */}
       <div className="mb-8">
         <div className="flex items-center">
-          {['project', 'upload', 'questions', 'complete'].map((step, index) => (
+          {["project", "upload", "questions", "complete"].map((step, index) => (
             <React.Fragment key={step}>
-              <div className={`flex items-center ${currentStep === step ? 'text-blue-600' : 'text-gray-500'}`}>
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 
-                  ${currentStep === step ? 'border-blue-600 bg-blue-100' : 'border-gray-300'}`}>
+              <div
+                className={`flex items-center ${
+                  currentStep === step ? "text-blue-600" : "text-gray-500"
+                }`}
+              >
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center border-2
+                  ${
+                    currentStep === step
+                      ? "border-blue-600 bg-blue-100"
+                      : "border-gray-300"
+                  }`}
+                >
                   {index + 1}
                 </div>
                 <span className="ml-2">
-                  {step === 'project' && 'プロジェクト作成'}
-                  {step === 'upload' && 'CSVアップロード'}
-                  {step === 'questions' && '質問生成'}
-                  {step === 'complete' && '完了'}
+                  {step === "project" && "プロジェクト作成"}
+                  {step === "upload" && "CSVアップロード"}
+                  {step === "questions" && "質問生成"}
+                  {step === "complete" && "完了"}
                 </span>
               </div>
               {index < 3 && (
-                <div className={`flex-1 h-0.5 mx-4 ${
-                  index < ['project', 'upload', 'questions', 'complete'].indexOf(currentStep)
-                    ? 'bg-blue-600'
-                    : 'bg-gray-300'
-                }`}></div>
+                <div
+                  className={`flex-1 h-0.5 mx-4 ${
+                    index <
+                    ["project", "upload", "questions", "complete"].indexOf(
+                      currentStep
+                    )
+                      ? "bg-blue-600"
+                      : "bg-gray-300"
+                  }`}
+                ></div>
               )}
             </React.Fragment>
           ))}
@@ -250,7 +294,7 @@ const CsvUploadPage: React.FC = () => {
       </div>
 
       {/* Project creation form */}
-      {currentStep === 'project' && (
+      {currentStep === "project" && (
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700">
@@ -278,7 +322,8 @@ const CsvUploadPage: React.FC = () => {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">
-              抽出トピック (これを正しく設定しないと主張抽出がうまくいきません。)
+              抽出トピック
+              (これを正しく設定しないと主張抽出がうまくいきません。)
               <input
                 type="text"
                 value={extractionTopic}
@@ -299,7 +344,7 @@ const CsvUploadPage: React.FC = () => {
       )}
 
       {/* CSV upload form */}
-      {currentStep === 'upload' && (
+      {currentStep === "upload" && (
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700">
@@ -313,7 +358,8 @@ const CsvUploadPage: React.FC = () => {
               />
             </label>
             <p className="mt-1 text-sm text-gray-500">
-              必要な列: content, sourceType ('youtube' | 'x' | 'form' | 'other' | null), sourceUrl (optional)
+              必要な列: content, sourceType ('youtube' | 'x' | 'form' | 'other'
+              | null), sourceUrl (optional)
             </p>
           </div>
 
@@ -329,7 +375,7 @@ const CsvUploadPage: React.FC = () => {
       )}
 
       {/* Question generation step */}
-      {currentStep === 'questions' && !isProcessing && (
+      {currentStep === "questions" && !isProcessing && (
         <div className="space-y-4">
           <p className="text-gray-700">
             コメントのアップロードが完了しました。論点を生成し、立場をラベル付けしますか？
@@ -344,11 +390,9 @@ const CsvUploadPage: React.FC = () => {
       )}
 
       {/* Complete step */}
-      {currentStep === 'complete' && (
+      {currentStep === "complete" && (
         <div className="space-y-4">
-          <p className="text-gray-700">
-            すべての処理が完了しました。
-          </p>
+          <p className="text-gray-700">すべての処理が完了しました。</p>
           <a
             href={`/projects/${currentProjectId}`}
             className="inline-block px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
